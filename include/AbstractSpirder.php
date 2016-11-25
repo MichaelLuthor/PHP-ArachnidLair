@@ -1,0 +1,62 @@
+<?php
+use GuzzleHttp\Client;
+use GuzzleHttp\Cookie\CookieJar;
+abstract class AbstractSpirder {
+    /** @var array */
+    private $tasks = array();
+    /** @var Client */
+    public $client = null;
+    /** @var CookieJar */
+    public $cookieJar = null;
+    
+    /** @return void */
+    protected function init() {
+        $this->client = new Client();
+        $this->cookieJar = new CookieJar();
+    }
+    
+    /**
+     * @param unknown $task
+     * @param array $option
+     */
+    public function addTask(  $task, $option=array() ) {
+        $this->tasks[] = array('url'=>$task, 'option'=>$option);
+    }
+    
+    /** @return void */
+    protected function onAllTaskFinished() {}
+    
+    /** @return void */
+    protected function onTaskFinished($task, $response) {}
+    
+    /** @return void */
+    public function foraging() {
+        $this->init();
+        $this->startTask();
+    }
+    
+    /** @return void */
+    protected function startTask() {
+        do {
+            foreach ( $this->tasks as $index => $task ) {
+                $response = $this->client->get($task['url']->toString(), array(
+                    'cookies'=>$this->cookieJar,
+                    'verify' => false,
+                ));
+                $this->onTaskFinished($task, $response);
+                unset($this->tasks[$index]);
+            }
+            $this->onAllTaskFinished();
+            if ( empty($this->tasks) ) {
+                $this->say("All Task Finished.");
+                break;
+            }
+        } while (true);
+    }
+    
+    /** @param string $message */
+    public function say( $message ) {
+        $message = call_user_func_array('sprintf', func_get_args());
+        echo $message."\n";
+    }
+}
