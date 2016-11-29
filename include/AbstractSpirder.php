@@ -24,7 +24,7 @@ abstract class AbstractSpirder {
     }
     
     /** @return void */
-    protected function onAllTaskFinished() {}
+    protected function generateTasks() {}
     
     /** @return void */
     protected function onTaskFinished($task, $response) {}
@@ -46,7 +46,7 @@ abstract class AbstractSpirder {
                 $this->onTaskFinished($task, $response);
                 unset($this->tasks[$index]);
             }
-            $this->onAllTaskFinished();
+            $this->generateTasks();
             if ( empty($this->tasks) ) {
                 $this->say("All Task Finished.");
                 break;
