@@ -58,7 +58,7 @@ class UserInfoSpider extends AbstractSpirder {
     private $uid = null;
     
     /** @var integer */
-    private $maxUid = 60000;
+    private $maxUid = 100000;
     
     /**
      * {@inheritDoc}
