@@ -8,6 +8,18 @@ class UserInfoSpider extends AbstractSpirder {
         TraitSpiderJavaScript,
         TraitSpiderStorageDB;
     
+    /** 屏蔽时间的秒数 */
+    const BLOCK_TIME = 3600;
+        
+    /** @var array */
+    private $accounts = array(
+        '568109749' => array('password'=>'michael1215'),
+        '2971307115' => array('password'=>'ginhappy@1215'),
+    );
+    
+    /** @var string */
+    private $activeQQ = null;
+    
     /** @var integer */
     private $gtk = null;
     
@@ -25,33 +37,9 @@ class UserInfoSpider extends AbstractSpirder {
         $this->uid = $this->max('user_information', 'uid');
         if ( null === $this->uid ) {
             $this->uid = 50000;
-        } 
+        }
         
-        $this->say('Login QQ');
-        $host = 'http://127.0.0.1:4444/wd/hub';
-        /* @var $main \Facebook\WebDriver\Remote\RemoteWebDriver */
-        $main = RemoteWebDriver::create($host, DesiredCapabilities::chrome());
-        $main->get('http://qzone.qq.com/');
-        /* @var $loginFrame \Facebook\WebDriver\WebDriver */
-        $loginFrame = $main->switchTo()->frame('login_frame');
-        $loginFrame->findElement(WebDriverBy::id('switcher_plogin'))->click();
-        $loginFrame->findElement(WebDriverBy::id('u'))->sendKeys('568109749');
-        $loginFrame->findElement(WebDriverBy::id('p'))->sendKeys('michael1215');
-        $loginFrame->findElement(WebDriverBy::id('login_button'))->click();
-        sleep(20);
-        $cookieValues = $this->getCookieValuesFromWebDriver($main);
-        $this->setCookiesByWebDriver($main);
-        $main->close();
-        
-        $this->gtk = $this->runJS("(function (skey) {
-            var hash = 5381;
-            for (var i = 0, len = skey.length;i < len;++i) {
-                hash += (hash << 5) + skey.charAt(i).charCodeAt();
-            }
-            return hash & 2147483647;
-        })('{$cookieValues['p_skey']}');");
-        
-        $this->say('gtk = %s', $this->gtk);
+        $this->loginQQ();
     }
     
     /** @var integer */
@@ -84,6 +72,14 @@ class UserInfoSpider extends AbstractSpirder {
     
     /**
      * {@inheritDoc}
+     * @see AbstractSpirder::beforeTaskStarted()
+     */
+    protected function beforeTaskStarted(&$task) {
+        $task['url']->set('g_tk', $this->gtk);
+    }
+    
+    /**
+     * {@inheritDoc}
      * @see AbstractSpirder::onTaskFinished()
      */
     protected function onTaskFinished($task, $response) {
@@ -96,6 +92,13 @@ class UserInfoSpider extends AbstractSpirder {
             'response_code' => $responseContent['code'],
             'response_message' => $responseContent['message'],
         );
+        if ( '-99997' == $responseContent['code'] ) { # 频率过于频繁
+            $this->addTask($task);
+            $this->accounts[$this->activeQQ]['is_blocking'] = true;
+            $this->accounts[$this->activeQQ]['blocked_time'] = time();
+            $this->loginQQ();
+            return;
+        }
         if ( isset($responseContent['data']) ) {
             $record = array_merge($record, $responseContent['data']);
             unset($record['uin']);
@@ -107,5 +110,85 @@ class UserInfoSpider extends AbstractSpirder {
         }
         
         $this->insert('user_information', $record);
+    }
+    
+    /**
+     * @return void
+     */
+    private function loginQQ() {
+        $account = $this->getAvailableQQ();
+        
+        $this->say('Login QQ : %s', $account['uid']);
+        $host = 'http://127.0.0.1:4444/wd/hub';
+        /* @var $main \Facebook\WebDriver\Remote\RemoteWebDriver */
+        $main = RemoteWebDriver::create($host, DesiredCapabilities::chrome());
+        $main->get('http://qzone.qq.com/');
+        /* @var $loginFrame \Facebook\WebDriver\WebDriver */
+        $loginFrame = $main->switchTo()->frame('login_frame');
+        $loginFrame->findElement(WebDriverBy::id('switcher_plogin'))->click();
+        $loginFrame->findElement(WebDriverBy::id('u'))->sendKeys($account['uid']);
+        $loginFrame->findElement(WebDriverBy::id('p'))->sendKeys($account['password']);
+        $loginFrame->findElement(WebDriverBy::id('login_button'))->click();
+        $this->timeCounter(20);
+        $cookieValues = $this->getCookieValuesFromWebDriver($main);
+        $this->setCookiesByWebDriver($main);
+        $main->close();
+        
+        if ( !isset($cookieValues['p_skey']) ) {
+            $this->say('Retry login QQ...');
+            return $this->loginQQ();
+        }
+        
+        $this->gtk = $this->runJS("(function (skey) {
+            var hash = 5381;
+            for (var i = 0, len = skey.length;i < len;++i) {
+            hash += (hash << 5) + skey.charAt(i).charCodeAt();
+        }
+            return hash & 2147483647;
+        })('{$cookieValues['p_skey']}');");
+        
+        $this->say('gtk = %s', $this->gtk);
+    }
+    
+    /**
+     * @return array
+     */
+    private function getAvailableQQ() {
+        $accountUid = null;
+        $password = null;
+        
+        $waitTime = 0;
+        $now = time();
+        foreach ( $this->accounts as $account => &$accountInfo ) {
+            if ( !isset($accountInfo['is_blocking']) ) {
+                $accountInfo['is_blocking'] = false;
+                $accountInfo['blocked_time'] = null;
+            }
+            if ( $accountInfo['is_blocking'] ) {
+                if ( $now > $accountInfo['blocked_time']+self::BLOCK_TIME ) {
+                    $accountInfo['is_blocking'] = false;
+                    $accountInfo['blocked_time'] = null;
+                } else {
+                    $newWaitTime = $accountInfo['blocked_time'] + self::BLOCK_TIME - $now; 
+                    if ( 0===$waitTime ) {
+                        $waitTime = $newWaitTime;
+                    }
+                    if ( $newWaitTime < $waitTime ) {
+                        $waitTime = $newWaitTime;
+                    }
+                }
+            }
+            if ( !$accountInfo['is_blocking'] && null===$accountUid ) {
+                $accountUid = $account;
+                $password = $accountInfo['password'];
+            }
+        }
+        if ( null === $accountUid ) {
+            $this->timeCounter($waitTime);
+            return $this->getAvailableQQ();
+        }
+        
+        $this->activeQQ = $accountUid;
+        return array('uid'=>$accountUid, 'password'=>$password);
     }
 }

@@ -29,6 +29,9 @@ abstract class AbstractSpirder {
     /** @return void */
     protected function onTaskFinished($task, $response) {}
     
+    /** @return boolean */
+    protected function beforeTaskStarted(&$task) {}
+    
     /** @return void */
     public function foraging() {
         $this->init();
@@ -39,6 +42,7 @@ abstract class AbstractSpirder {
     protected function startTask() {
         do {
             foreach ( $this->tasks as $index => $task ) {
+                $this->beforeTaskStarted($task);
                 $response = $this->client->get($task['url']->toString(), array(
                     'cookies'=>$this->cookieJar,
                     'verify' => false,
@@ -58,5 +62,16 @@ abstract class AbstractSpirder {
     public function say( $message ) {
         $message = call_user_func_array('sprintf', func_get_args());
         echo $message."\n";
+    }
+    
+    /**
+     * @param unknown $seconds
+     */
+    public function timeCounter( $seconds ) {
+        while ( $seconds > 0 ) {
+            $this->say("Countdown Timer : %d", $seconds);
+            $seconds --;
+            sleep(1);
+        }
     }
 }
