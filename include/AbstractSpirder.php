@@ -24,7 +24,7 @@ abstract class AbstractSpirder {
     }
     
     /** @return void */
-    protected function generateTasks() {}
+    protected function generateTasks($isInit) {}
     
     /** @return void */
     protected function onTaskFinished($task, $response) {}
@@ -40,6 +40,7 @@ abstract class AbstractSpirder {
     
     /** @return void */
     protected function startTask() {
+        $isInit = true;
         do {
             foreach ( $this->tasks as $index => $task ) {
                 $this->beforeTaskStarted($task);
@@ -50,7 +51,8 @@ abstract class AbstractSpirder {
                 $this->onTaskFinished($task, $response);
                 unset($this->tasks[$index]);
             }
-            $this->generateTasks();
+            $this->generateTasks($isInit);
+            $isInit = false;
             if ( empty($this->tasks) ) {
                 $this->say("All Task Finished.");
                 break;
