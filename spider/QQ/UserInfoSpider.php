@@ -46,14 +46,14 @@ class UserInfoSpider extends AbstractSpirder {
     private $uid = null;
     
     /** @var integer */
-    private $maxUid = 100000;
+    private $maxUid = 1000000;
     
     /**
      * {@inheritDoc}
      * @see AbstractSpirder::generateTasks()
      */
     protected function generateTasks() {
-        for ($i=0; $i<10; $i++ ) {
+        for ($i=0; $i<100; $i++ ) {
             if ( $this->maxUid < $this->uid  ) {
                 break;
             }
@@ -68,6 +68,7 @@ class UserInfoSpider extends AbstractSpirder {
             $this->addTask($url, array('uid'=>$this->uid));
             $this->uid ++;
         }
+        $this->timeCounter(10*60);
     }
     
     /**
