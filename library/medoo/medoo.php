@@ -133,7 +133,7 @@ class medoo
 			{
 				$commands[] = "SET NAMES '" . $this->charset . "'";
 			}
-
+            
 			$this->pdo = new PDO(
 				$dsn,
 				$this->username,
@@ -187,23 +187,34 @@ class medoo
 	{
 		return $this->pdo->quote($string);
 	}
-
-	protected function table_quote($table)
-	{
-		return '"' . $this->prefix . $table . '"';
-	}
-
-	protected function column_quote($string)
-	{
-		preg_match('/(\(JSON\)\s*|^#)?([a-zA-Z0-9_]*)\.([a-zA-Z0-9_]*)/', $string, $column_match);
-
-		if (isset($column_match[ 2 ], $column_match[ 3 ]))
-		{
-			return '"' . $this->prefix . $column_match[ 2 ] . '"."' . $column_match[ 3 ] . '"';
-		}
-
-		return '"' . $string . '"';
-	}
+    
+    /**
+     * @param unknown $table
+     */
+    protected function table_quote($table) {
+        switch ( $this->database_type ) {
+        case 'mysql' : return "`{$this->prefix}{$table}`";
+        case 'mssql' : return "[{$this->prefix}{$table}]";
+        case 'sqlite' : return "\"{$this->prefix}{$table}\"";
+        default : return $this->prefix.$table;
+        }
+    }
+    
+    /**
+     * @param unknown $string
+     */
+    protected function column_quote($string) {
+        preg_match('/(\(JSON\)\s*|^#)?([a-zA-Z0-9_]*)\.([a-zA-Z0-9_]*)/', $string, $column_match);
+        if (isset($column_match[ 2 ], $column_match[ 3 ])) {
+            return $this->table_quote($column_match[2]).'"."'.$this->column_quote($column_match[3]);
+        }
+        
+        switch ( $this->database_type ) {
+        case 'mysql' : return "`{$string}`";
+        case 'sqlite' : return "\"{$string}\"";
+        default : return $string;
+        }
+    }
 
 	protected function column_push(&$columns)
 	{
