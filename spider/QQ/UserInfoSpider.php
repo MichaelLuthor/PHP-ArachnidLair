@@ -31,8 +31,12 @@ class UserInfoSpider extends AbstractSpirder {
         parent::init();
         
         $this->setDBConfig(array(
-            'database_type' => 'sqlite',
-            'database_file' => 'E:/qq-user-inf-raw.db',
+            'database_type' => 'mysql',
+            'server' => '127.0.0.1',
+            'database_name' => 'QQ',
+            'username' => 'root',
+            'password' => 'oyys',
+            'charset' => 'UTF8',
         ));
         $this->uid = $this->max('user_information', 'uid');
         if ( null === $this->uid ) {
